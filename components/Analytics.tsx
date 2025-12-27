@@ -1,30 +1,49 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
-import { TrendingUp, Users, PlayCircle } from 'lucide-react';
-
-const data = [
-  { name: '00:00', streams: 4000 },
-  { name: '04:00', streams: 3000 },
-  { name: '08:00', streams: 2000 },
-  { name: '12:00', streams: 2780 },
-  { name: '16:00', streams: 1890 },
-  { name: '20:00', streams: 2390 },
-  { name: '23:59', streams: 3490 },
-];
+import { TrendingUp, Users, PlayCircle, Loader2 } from 'lucide-react';
+import { LinkZService } from '../services/linkzService';
 
 export const Analytics: React.FC = () => {
+  const [data, setData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+        const result = await LinkZService.getAnalyticsData('24h');
+        // If empty (API fail or empty), use fallback structure to keep chart renderable or show empty state
+        if (result.length === 0) {
+             // Mock structure for empty state visualization if API fails in this demo env
+             setData([
+                { name: '00:00', streams: 0 },
+                { name: '08:00', streams: 0 },
+                { name: '16:00', streams: 0 },
+                { name: '23:59', streams: 0 },
+             ]);
+        } else {
+            setData(result);
+        }
+        setLoading(false);
+    };
+    fetchData();
+  }, []);
+
   return (
     <div className="space-y-6 animate-[fadeIn_0.5s_ease-out]">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="bg-[#0f0f19]/70 backdrop-blur-xl p-8 rounded-3xl border border-white/5 col-span-2 shadow-xl">
+            <div className="bg-[#0f0f19]/70 backdrop-blur-xl p-8 rounded-3xl border border-white/5 col-span-2 shadow-xl relative">
+                {loading && (
+                    <div className="absolute inset-0 bg-[#0f0f19]/80 z-10 flex items-center justify-center rounded-3xl backdrop-blur-sm">
+                        <Loader2 className="animate-spin text-indigo-500" size={32} />
+                    </div>
+                )}
                 <div className="flex justify-between items-center mb-8">
                     <div>
                         <h3 className="text-xl font-black text-white">Real-Time Ingestion</h3>
                         <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Global DSP Stream Count</p>
                     </div>
                     <div className="flex gap-2">
-                        <span className="w-3 h-3 bg-indigo-500 rounded-full"></span>
-                        <span className="text-xs text-slate-400">Live Data</span>
+                        <span className="w-3 h-3 bg-indigo-500 rounded-full animate-pulse"></span>
+                        <span className="text-xs text-slate-400">api.linkz.io</span>
                     </div>
                 </div>
                 <div className="h-[300px] w-full">
@@ -53,19 +72,19 @@ export const Analytics: React.FC = () => {
                 <MetricCard 
                     icon={<TrendingUp size={24} className="text-emerald-400" />}
                     label="Growth Rate"
-                    value="+12.5%"
-                    sub="+2.1% from last hour"
+                    value={loading ? '-' : "+0.0%"}
+                    sub="Waiting for data..."
                 />
                 <MetricCard 
                     icon={<Users size={24} className="text-cyan-400" />}
                     label="Unique Listeners"
-                    value="842.3K"
-                    sub="Across 4 Platforms"
+                    value={loading ? '-' : "0"}
+                    sub="Across 0 Platforms"
                 />
                 <MetricCard 
                     icon={<PlayCircle size={24} className="text-amber-400" />}
                     label="Skip Rate"
-                    value="14.2%"
+                    value={loading ? '-' : "0%"}
                     sub="Below industry avg"
                 />
             </div>
