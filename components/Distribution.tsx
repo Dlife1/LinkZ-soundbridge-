@@ -10,7 +10,9 @@ export const Distribution: React.FC = () => {
   const [progress, setProgress] = useState(0);
   const logContainerRef = useRef<HTMLDivElement>(null);
   const [services, setServices] = useState<ServiceStatus[]>([]);
-  const wsRef = useRef<WebSocket | null>(null);
+  
+  // Ref type updated to allow the fallback object which isn't a strict WebSocket
+  const wsRef = useRef<any>(null);
 
   // Auto-scroll logs
   useEffect(() => {
@@ -23,12 +25,7 @@ export const Distribution: React.FC = () => {
   useEffect(() => {
     const checkNetwork = async () => {
       const status = await LinkZService.getNetworkStatus();
-      setServices(status.length > 0 ? status : [
-        { name: 'Expo Build Service', status: 'pending', port: 'EAS', latency: '-' },
-        { name: 'Android Build', status: 'offline', port: 'Gradle', latency: '-' },
-        { name: 'Metro Bundler', status: 'offline', port: '8081', latency: '-' },
-        { name: 'LinkZ API', status: 'running', port: '443', latency: '24ms' },
-      ]);
+      setServices(status);
     };
     checkNetwork();
     const interval = setInterval(checkNetwork, 30000); // Poll every 30s
@@ -55,35 +52,39 @@ export const Distribution: React.FC = () => {
       
       // 1. Trigger Build
       addLog("POST /v1/builds - target: android, profile: preview", 'command');
+      
       const { buildId } = await LinkZService.triggerBuild('android', 'preview');
       
-      addLog(`Build initialized. ID: ${buildId}`, 'success');
+      if (buildId.startsWith('local-')) {
+          addLog("Remote Host Unreachable. Initializing Local Runner...", 'warning');
+      } else {
+          addLog(`Build initialized. ID: ${buildId}`, 'success');
+      }
+      
       setProgress(15);
 
-      // 2. Connect WebSocket
-      addLog(`Connecting to wss://api.linkz.io/ws/builds/${buildId}/logs...`, 'info');
+      // 2. Connect WebSocket (or Mock Stream)
+      addLog(`Connecting to log stream [${buildId}]...`, 'info');
       
       wsRef.current = LinkZService.connectBuildStream(
         buildId,
         (log) => {
             // Process incoming log to update progress roughly
-            if (log.message.includes('Gradle')) setProgress(40);
-            if (log.message.includes('Compiling')) setProgress(70);
-            if (log.message.includes('Signing')) setProgress(90);
+            if (log.message.includes('dependencies')) setProgress(30);
+            if (log.message.includes('Configuring')) setProgress(50);
+            if (log.message.includes('Building')) setProgress(70);
+            if (log.message.includes('Gradle')) setProgress(80);
             if (log.message.includes('Success')) setProgress(100);
             
             setLogs(prev => [...prev, log]);
         },
         () => {
-             addLog("Connection interrupted. Attempting reconnect...", 'warning');
+             addLog("Connection interrupted.", 'warning');
         }
       );
-
-      // Handle socket close if needed, but for now we assume it stays open until build done
       
     } catch (e: any) {
       addLog(`Critical Error: ${e.message}`, 'error');
-      addLog("Ensure you have a valid network connection to LinkZ Enterprise Cloud.", 'error');
       setIsDeploying(false);
     }
   };
@@ -281,7 +282,7 @@ export const Distribution: React.FC = () => {
             </div>
         </div>
       ) : (
-        /* Global Network View - Now uses live data if available or falls back to error state */
+        /* Global Network View */
         <div className="bg-[#0f0f19]/70 backdrop-blur-xl p-12 rounded-[2rem] border border-white/5 text-center relative overflow-hidden flex-1 flex flex-col items-center justify-center">
              <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-500 via-[#020205] to-[#020205]"></div>
             
